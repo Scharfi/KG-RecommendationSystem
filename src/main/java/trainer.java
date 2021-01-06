@@ -59,8 +59,6 @@ public class trainer {
                 "\n Dimension:\n " + dimension+
                 "\n embedding path:\n" + embeddingPath);
 
-
-
         for (int fold = 0; fold < 1; fold++) {
 
             RecordReader rr = new CSVRecordReader();
@@ -152,9 +150,7 @@ public class trainer {
                 System.out.println("Error while flushing/closing fileWriter !!!");
                 e.printStackTrace();
             }
-
         }
-
     }
 
     private static void ranking_evaluation(INDArray prediction, INDArray products, FileWriter file) throws IOException {
