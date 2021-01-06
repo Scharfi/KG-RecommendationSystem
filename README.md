@@ -1,8 +1,9 @@
-## EmbeddingBasedRecommendationSysem
+## Embedding-based Recommendation Sysem
 
 #Introduction
+
 This repository contain the code of a recommendation system that uses an artificial neural network and a learning-to-rank approach to generate the recommendations. The recommendation system produces a Top-N recommended products for a given product.
-The recommendation system can be trained and tested on various embedding models that were produced from on a Knowledge Graph. 
+The recommendation system can be trained and tested on various embedding models that were produced from on a Knowledge Graph.
 
 The embedding model in this repository are generated using different embedding algorithm:
 1.  Word2Vec
