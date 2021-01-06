@@ -20,9 +20,9 @@ public class dataprocessor {
 
     public static void main(String[] args) throws Exception {
 
-        modelinfo = new modelConstructor("conex"); // w2v(Word2Vec),r2v(RDF2Vec),pyke,conex,hybride
+        modelinfo = new modelConstructor("conex"); // w2v(Word2Vec), r2v(RDF2Vec), pyke, conex, hybride
         modeler = modelinfo.getModelname();
-        embeddingPath= modelinfo.getEmbeddingsPath(); // original embedding vectors
+        boolean centroid = false;
 
         System.out.println(" pre-processing data for " + modeler);
 
@@ -32,6 +32,7 @@ public class dataprocessor {
         //products = getproductsInfo();
 
         // update list of the embeddings with the new ids
+        //embeddingPath= modelinfo.getEmbeddingsPath(); // original embedding vectors
         //UpdateEmbeddings(embeddingPath, products);
 
         // normalize data
@@ -39,9 +40,12 @@ public class dataprocessor {
 
         // take normalized embeddings and generated training and test data
         embeddings = readEmbeddings();
-        createTrainandTestData(embeddings, modeler); //Create Training and testing for w2v(Word2Vec),r2v(RDF2Vec),pyke,conex
-        //createTrainandTestDataHybrid(embeddings, modeler); // Create Training and testing for HybridE
-        //createCentroidTrainandTestData(embeddings, modeler); // Create Training and testing for the centroid assumption
+        if (modeler=="hybride")
+            createTrainandTestDataHybrid(embeddings, modeler); // Create Training and testing for HybridE
+        else if (centroid)
+            createCentroidTrainandTestData(embeddings, modeler); // Create Training and testing for the centroid assumption
+        else
+            createTrainandTestData(embeddings, modeler); //Create Training and testing for w2v(Word2Vec),r2v(RDF2Vec),pyke,conex
 
     }
 

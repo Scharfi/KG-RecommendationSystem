@@ -48,16 +48,18 @@ public class trainer {
         modeler = modelinfo.getModelname();
         embeddingPath = modelinfo.getnormalizedEmbeddingsPath();
         embeds = list_embeddings();
+
         int dimension = modelinfo.getDimension();
+        boolean savemodel = false;
+        int labelIndexFrom = dimension;
+        int labelIndexTo = (dimension * 2) - 1;
+        int batchSize = 500;
 
         System.out.println(" The embedding model used is: \n" + modeler +
                 "\n Dimension:\n " + dimension+
                 "\n embedding path:\n" + embeddingPath);
 
 
-        int labelIndexFrom = dimension;
-        int labelIndexTo = (dimension * 2) - 1;
-        int batchSize = 500;
 
         for (int fold = 0; fold < 1; fold++) {
 
@@ -118,6 +120,12 @@ public class trainer {
                 while (trainData.hasNext())
                     model.fit(trainData.next());
                 trainData.reset();
+            }
+
+            // save model
+            if (savemodel == true) {
+                String Path = "data/evaluation/" + modeler + "/" + modeler + "_epoch" + epochs + ".model";
+                model.save(new File(Path), true);
             }
 
             System.out.println("output check and evaluation....");
