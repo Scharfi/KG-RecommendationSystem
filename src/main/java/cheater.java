@@ -138,14 +138,7 @@ public class cheater {
                         for (int i = 0; i < 100; i++) { //top 100 reversed
                             int e = index[15088 - i];
                             line = line + e + ",";
-                            for (int l = 0; l < labels.length; l++) { //label list
-                                int label = Integer.parseInt(labels[l]);
-                                if (e == label) {
-                                    labellist[l] = labellist[l] + 1;
-                                    p_position[i] = p_position[i] + 1;
-                                    count++;
-                                }
-                            }
+                            count = trainer.getCount(count, labellist, p_position, labels, i, e);
                         }
                     }
 

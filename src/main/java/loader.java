@@ -189,14 +189,7 @@ public class loader {
                     for (int i = 0; i < 100; i++) { //top 100 reversed
                         int e = index[15088 - i];
                         line = line + e + ",";
-                        for (int l = 0; l < parts.length; l++) { //label list
-                            int label = Integer.parseInt(parts[l]);
-                            if (e == label) {
-                                labellist[l] = labellist[l] + 1;
-                                p_position[i] = p_position[i] + 1;
-                                count++;
-                            }
-                        }
+                        count = trainer.getCount(count, labellist, p_position, parts, i, e);
                     }
                 }
 
@@ -378,14 +371,7 @@ public class loader {
                     for (int i = 0; i < 100; i++) { //top 100 reversed
                         int e = index[15088 - i];
                         line = line + e + ",";
-                        for (int l = 0; l < parts.length; l++) { //label list
-                            int label = Integer.parseInt(parts[l]);
-                            if (e == label) {
-                                labellist[l] = labellist[l] + 1;
-                                p_position[i] = p_position[i] + 1;
-                                count++;
-                            }
-                        }
+                        count = trainer.getCount(count, labellist, p_position, parts, i, e);
                     }
                 }
 

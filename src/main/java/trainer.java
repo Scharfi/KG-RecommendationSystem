@@ -10,7 +10,6 @@ import org.deeplearning4j.nn.conf.layers.OutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
-import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dataset.DataSet;
@@ -38,47 +37,38 @@ import java.util.Map;
  */
 public class trainer {
     static String modeler;
-    static String embeddingPath;
     static String time;
-    static INDArray embeds;
+    static modelConstructor embeddingModelInfo;
 
     public static void main(String[] args) throws Exception {
-
-        modelConstructor modelinfo = new modelConstructor("conex"); // w2v(Word2Vec),r2v(RDF2Vec),pyke,conex,hybride
-        modeler = modelinfo.getModelname();
-        embeddingPath = modelinfo.getnormalizedEmbeddingsPath();
-        embeds = list_embeddings();
-
-        int dimension = modelinfo.getDimension();
+        embeddingModelInfo = new modelConstructor("conex"); // w2v(Word2Vec),r2v(RDF2Vec),pyke,conex,hybride
+        modeler = embeddingModelInfo.getModelname();
         boolean savemodel = false;
+        
+        int dimension = embeddingModelInfo.getDimension();
         int labelIndexFrom = dimension;
         int labelIndexTo = (dimension * 2) - 1;
         int batchSize = 500;
 
-        System.out.println(" The embedding model used is: \n" + modeler +
-                "\n Dimension:\n " + dimension+
-                "\n embedding path:\n" + embeddingPath);
-
         for (int fold = 0; fold < 1; fold++) {
 
             RecordReader rr = new CSVRecordReader();
-            rr.initialize(new FileSplit(new File(modelinfo.getDatasetPath() + "_train_F" + fold + ".csv")));
+            rr.initialize(new FileSplit(new File(embeddingModelInfo.getDatasetPath() + "_train_F" + fold + ".csv")));
             DataSetIterator trainData = new RecordReaderDataSetIterator.Builder(rr, batchSize).regression(labelIndexFrom, labelIndexTo).build();
 
             RecordReader rrt = new CSVRecordReader();
-            rrt.initialize(new FileSplit(new File(modelinfo.getDatasetPath() + "_test_F" + fold + ".csv")));
+            rrt.initialize(new FileSplit(new File(embeddingModelInfo.getDatasetPath() + "_test_F" + fold + ".csv")));
             DataSetIterator testData = new RecordReaderDataSetIterator.Builder(rrt, 3000).regression(0, 0).build();
 
             //Configure neural network
-            final int numInputs = modelinfo.dimension;
+            final int numInputs = embeddingModelInfo.dimension;
             int epochs = 1;
             int seed = 123;
             double learningRate = 0.5;
             int nOut = 9000;
             double l2 = 1e-7;
-
-
-            System.out.println("building model....");
+            
+            System.out.println("building neural network model....");
             MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
                     .seed(seed)
                     .updater(new Sgd(learningRate))
@@ -101,8 +91,7 @@ public class trainer {
             MultiLayerNetwork model = new MultiLayerNetwork(conf);
             model.init();
             model.setListeners(new ScoreIterationListener(10));  //Print score every n parameter updates
-
-
+            
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH-mm-ss");
             LocalDateTime now = LocalDateTime.now();
             time = dtf.format(now);
@@ -121,23 +110,17 @@ public class trainer {
             }
 
             // save model
-            if (savemodel == true) {
-                String Path = "data/evaluation/" + modeler + "/" + modeler + "_epoch" + epochs + ".model";
-                model.save(new File(Path), true);
+            if (savemodel) {
+                model.save(new File("data/evaluation/" + modeler + "/" + modeler + "_epoch" + epochs + ".model"), true);
             }
 
-            System.out.println("output check and evaluation....");
-            System.out.println("fit model....");
-            System.out.println("epoch " + epochs);
-
+            System.out.println("output check and evaluation... for epoch "+epochs);
             DataSet test = testData.next();
             INDArray feature = test.getFeatures();
             INDArray products = test.getLabels();
-            System.out.println(" feature size ");
-            System.out.println(feature.size(0));
             INDArray prediction = model.output(feature);
 
-            info = "============ epoch " + epochs + "\n" + " Nbr of samples " + feature.size(0) + " \n";
+            info = "epoch " + epochs + "\nNumber of samples " + feature.size(0) + "\n";
             file.append(info);
 
             // evaluate predicted rows
@@ -153,111 +136,114 @@ public class trainer {
         }
     }
 
-    private static void ranking_evaluation(INDArray prediction, INDArray products, FileWriter file) throws IOException {
-
-        double similarity, sumT = 0, sumout = 0, sumin = 0, count;
-        INDArray predvec;
-        int productId;
-        String fileline;
-        int[] index;
+    private static void ranking_evaluation(INDArray prediction, INDArray products, FileWriter file) {
+        double similarity, sumOfCorrectPrediction = 0, ProductHasNoCorrectPrediction = 0, ProductHasCorrectPrediction = 0, count;
         double[] similarities;
-        int[] labellist = new int[10];
-        int[] p_position = new int[100];
 
+        int productTotest;
+        int[] indexes;
+        int[] correctPredictionByLabelPosition = new int[10];
+        int[] listOfCorrectPredictionPosition = new int[100];
+
+        INDArray predictedVec;
+        StringBuilder fileline;
         try {
             System.out.println("Evaluation ...");
 
             AssociativeSort sortarray = new AssociativeSort();
             Map<Integer, String> reclist = getRecommendationList();
-
+            INDArray embeds = list_embeddings();
             int numOfSamples = (int) prediction.size(0);
-            System.out.println("Nbr of samples " + numOfSamples);
+            System.out.println("Number of samples " + numOfSamples);
 
             // loop over all predicted vectors and count correct samples
-            for (int k = 0; k < numOfSamples; k++) {
+            for (int k = 0; k < 5; k++) {
 
                 count = 0;
                 similarities = new double[15089];
-                index = new int[15089];
+                indexes = new int[15089];
 
-                predvec = prediction.getRow(k);
+                predictedVec = prediction.getRow(k);
                 String productid = products.getRow(k).toStringFull();
-                productId = Integer.parseInt(productid.substring(1, productid.length() - 1));
+                productTotest = Integer.parseInt(productid.substring(1, productid.length() - 1));
 
                 // loop over the embeddings vectors and calculate cosine similarity between vectors
-                for (int e = 0; e < embeds.size(0); e++) {
-                    INDArray row = embeds.getRow(e);
-
+                for (int i = 0; i < embeds.size(0); i++) {
+                    INDArray row = embeds.getRow(i);
                     // Store  cosine similarities for all product
-                    similarity = cosineSimilarity(predvec.toDoubleVector(), row.toDoubleVector());
-                    similarities[e] = similarity;
-                    index[e] = e;
+                    similarity = cosineSimilarity(predictedVec.toDoubleVector(), row.toDoubleVector());
+                    similarities[i] = similarity;
+                    indexes[i] = i;
                 }
-                // Sort the predicted array as well as its indexes
-                double[] transformed = sortarray.quickSort(similarities, index);
 
-                // evaluate predicted ids with true labels
-                String line = "";
-                String list = "";
-                // check Top 100 product with 10 label
-                if (reclist.containsKey(productId)) {
-                    list = reclist.get(productId);
-                    String[] parts = list.split(",");
+                // Sort the predicted products as well as their indexes
+                sortarray.quickSort(similarities, indexes);
+
+                // test the predicted products(ids) with the true labels: check Top 100 product with 10 label
+                String labelsList;
+                if (reclist.containsKey(productTotest)) {
+                    labelsList = reclist.get(productTotest);
+                    String[] labels = labelsList.split(",");
                     for (int i = 0; i < 100; i++) { //top 100 reversed
-                        int e = index[15088 - i];
-                        line = line + e + ",";
-                        for (int l = 0; l < parts.length; l++) { //label list
-                            int label = Integer.parseInt(parts[l]);
-                            if (e == label) {
-                                labellist[l] = labellist[l] + 1;
-                                p_position[i] = p_position[i] + 1;
-                                count++;
-                            }
-                        }
+                        int predictedProduct = indexes[15088 - i];
+                        count = getCount(count, correctPredictionByLabelPosition, listOfCorrectPredictionPosition, labels, i, predictedProduct);
                     }
-                }
+                } else
+                    System.out.println("Product " + productTotest + "has no recommendation list");
 
-                //sum total correct prediction
-                sumT = sumT + count;
+                sumOfCorrectPrediction += count;
+
+                // count products that have correct/not correct predictions
                 if (count > 0)
-                    sumin++;
-                else sumout++;
+                    ProductHasCorrectPrediction++;
+                else ProductHasNoCorrectPrediction++;
 
             }
 
             // Overall results and evaluation
-            fileline = "Total correct samples " + sumT +
-                    "\n" + "Nbr of products in " + sumin +
-                    "\n" + "Nbr of products out  ------" + sumout +
-                    "\n";
+            fileline = new StringBuilder("Total correctly predicted products: " + sumOfCorrectPrediction +
+                    "\n" + "Number of products that the model predicted correct products: " + ProductHasCorrectPrediction +
+                    "\n" + "Number of products that the model did not predicted correct products: " + ProductHasNoCorrectPrediction +
+                    "\n");
             System.out.println(fileline);
-            file.append(fileline);
+            file.append(fileline.toString());
 
-            fileline = "";
+            // display and save the correctly predicted products according to the true labels positions
+            fileline = new StringBuilder();
             for (int l = 0; l < 10; l++)
-                fileline += labellist[l] + ",";
-            System.out.println(fileline);
-            file.append(fileline);
-            file.append("\n");
+                fileline.append(correctPredictionByLabelPosition[l]).append(",");
 
-            // calculate results
-            calculeResults(numOfSamples, p_position, sumT, file);
+            System.out.println("The correctly predicted products according to the true labels positions: \n" +fileline);
+            file.append(fileline.toString()).append("\n");
 
-            System.out.println("Evaluation ending ...");
+            // evaluate the results
+            calculeResults(numOfSamples, listOfCorrectPredictionPosition, sumOfCorrectPrediction, file);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void calculeResults(int numOfSamples, int[] p_position, double sumT, FileWriter file) {
+    static double getCount(double count, int[] correctPredictionByLabelPosition, int[] listOfCorrectPredictionPosition, String[] labels, int i, int predictedProduct) {
+        // loop over the true label list to check if the predicted product is correct
+        for (int l = 0; l < labels.length; l++) {
+            int label = Integer.parseInt(labels[l]);
+            if (predictedProduct == label) {
+                correctPredictionByLabelPosition[l] = correctPredictionByLabelPosition[l] + 1;
+                listOfCorrectPredictionPosition[i] = listOfCorrectPredictionPosition[i] + 1;
+                count++;
+            }
+        }
+        return count;
+    }
 
+    private static void calculeResults(int numOfSamples, int[] listOfCorrectPredictionPosition, double sumOfCorrectPrediction, FileWriter file) {
+        double value, sum_10 = 0, sum_15 = 0, sum_20 = 0, sum_25 = 0, sum_50 = 0, sumw_10 = 0;
+        StringBuilder fileline = new StringBuilder();
         try {
-            String fileline = "";
-            double value, sum_10 = 0, sum_15 = 0, sum_20 = 0, sum_25 = 0, sum_50 = 0, sumw_10 = 0, sumw_15 = 0, sumw_20 = 0, sumw_25 = 0, sumw_50 = 0, sumw_100 = 0;
             for (int l = 0; l < 100; l++) {
-                value = p_position[l];
-                fileline = fileline + value + ",";
+                value = listOfCorrectPredictionPosition[l];
+                fileline.append(value).append(",");
                 if (l < 10) {
                     sumw_10 += ((double) value / (l + 1));
                     sum_10 += value;
@@ -271,33 +257,32 @@ public class trainer {
                 if (l < 50)
                     sum_50 += value;
             }
-            System.out.println(fileline);
-            System.out.println("s50= " + sum_50);
-            file.append(fileline);
-            file.append("\n");
+            System.out.println("The correctly predicted products according to the top predicted list positions:\n" +fileline);
+            file.append(fileline.toString()).append("\n");
 
             // calculate results
-            double numOfSamples_10 = numOfSamples * 10;
-            double microrecall = sumT / (numOfSamples_10);
-            double microprecision = sumT / (numOfSamples * 100);
-            fileline = "Micro recall@100: " + sumT + "/" + numOfSamples_10 + "= " + microrecall + "\n Micro precision@100 = " + microprecision + "\n";
+            System.out.println("Evaluation Results");
+            double numOfSamplesBy10 = numOfSamples * 10;
+            double microRecall_100 = sumOfCorrectPrediction / (numOfSamplesBy10);
+            double microprecision = sumOfCorrectPrediction / (numOfSamples * 100);
+            fileline = new StringBuilder("Micro recall@100: " + sumOfCorrectPrediction + "/" + numOfSamplesBy10 + "= " + microRecall_100 + "\nMicro precision@100 = " + microprecision + "\n");
             System.out.println(fileline);
-            file.append(fileline);
+            file.append(fileline.toString());
 
             // Calcule of average recall at different ranks
-            double recall_10 = sum_10 / numOfSamples_10;
-            double recall_15 = sum_15 / numOfSamples_10;
-            double recall_20 = sum_20 / numOfSamples_10;
-            double recall_25 = sum_25 / numOfSamples_10;
-            double recall_50 = sum_50 / numOfSamples_10;
-            fileline = "recall@10: " + recall_10
-                    + "\n recall@15: " + recall_15
-                    + "\n recall@20: " + recall_20
-                    + "\n recall@25: " + recall_25
-                    + "\n recall@50: " + recall_50
-                    + "\n";
+            double microRecall_10 = sum_10 / numOfSamplesBy10;
+            double microRecall_15 = sum_15 / numOfSamplesBy10;
+            double microRecall_20 = sum_20 / numOfSamplesBy10;
+            double microRecall_25 = sum_25 / numOfSamplesBy10;
+            double microRecall_50 = sum_50 / numOfSamplesBy10;
+            fileline = new StringBuilder("recall@10: " + microRecall_10
+                    + "\nrecall@15: " + microRecall_15
+                    + "\nrecall@20: " + microRecall_20
+                    + "\nrecall@25: " + microRecall_25
+                    + "\nrecall@50: " + microRecall_50
+                    + "\nrecall@100: "+ microRecall_100);
             System.out.println(fileline);
-            file.append(fileline);
+            file.append(fileline.toString());
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -305,18 +290,9 @@ public class trainer {
     }
 
     private static INDArray list_embeddings() {
-        int col = 0;
-        try {
-            if (modeler == "w2v") {
-                col = 300;
-            } else if (modeler == "r2v") {
-                col = 100;
-            } else if (modeler == "pyke") {
-                col = 50;
-            } else
-                col = 40;
-            INDArray embeds = Nd4j.create(new int[]{15089, col});
-            List<String> lines = IOUtils.readLines(new FileInputStream(new File(embeddingPath)), StandardCharsets.UTF_8);
+        try{
+            INDArray embeds = Nd4j.create(new int[]{15089, embeddingModelInfo.getDimension()});
+            List<String> lines = IOUtils.readLines(new FileInputStream(embeddingModelInfo.getnormalizedEmbeddingsPath()), StandardCharsets.UTF_8);
             for (String line : lines) {
                 int id = Integer.parseInt(line.substring(0, line.indexOf(",")));
                 String[] parts = line.split(",");
@@ -332,12 +308,11 @@ public class trainer {
         }
     }
 
-
     private static Map<Integer, String> getRecommendationList() {
         Map<Integer, String> list = new HashMap<>();
         String id;
         try {
-            List<String> lines = IOUtils.readLines(new FileInputStream(new File("data/processingdata/Recommended_10ids.csv")), StandardCharsets.UTF_8);
+            List<String> lines = IOUtils.readLines(new FileInputStream("data/processingdata/Recommended_10ids.csv"), StandardCharsets.UTF_8);
             for (String line : lines) {
                 id = line.substring(0, line.indexOf(","));
                 list.put(Integer.parseInt(id), line.substring(line.indexOf(",") + 1));
