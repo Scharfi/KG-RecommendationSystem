@@ -13,21 +13,20 @@ import java.util.TreeMap;
 public class dataprocessor {
     static String modeler;
     static String embeddingPath;
-    static modelConstructor embeddingModelinfo;
+    static modelConstructor embeddingModelInfo;
 
     private static Map<String, String> products;
     private static Map<String, String> embeddings;
     private static Map<String, String> recommends;
 
     public static void main(String[] args) throws Exception {
-        embeddingModelinfo = new modelConstructor("conex"); // w2v(Word2Vec), r2v(RDF2Vec), pyke, conex, hybride
-        modeler = embeddingModelinfo.getModelname();
-        boolean centroid = false;
+        embeddingModelInfo = new modelConstructor(args[0]); // w2v(Word2Vec), r2v(RDF2Vec), pyke, conex, hybride
+        modeler = embeddingModelInfo.getModelname();
 
-        System.out.println(" Data preparation of " + modeler);
+        System.out.println("Data preparation of " + modeler);
         // Data preparation
         /*
-        generateIds(embeddingModelinfo.getProductNamesPath()); //create new ids for all products
+        generateIds(embeddingModelInfo.getProductNamesPath()); //create new ids for all products
         products = getproductsInfo(); //return products {id,name}
         normalizeVectors(); //normalize data
         */
@@ -36,9 +35,10 @@ public class dataprocessor {
         embeddings = readEmbeddings();
         if ("hybride".equals(modeler))
             createTrainAndTestDataHybrid(embeddings); // Create Training and testing for HybridE
-        else if (centroid)
-            createCentroidTrainAndTestData(embeddings); // Create Training and testing for the centroid assumption
-        else
+        else if (args[1]!=null) {
+            if ("true".equals(args[1]))
+                createCentroidTrainAndTestData(embeddings); // Create Training and testing for the centroid assumption
+        } else
             createTrainAndTestData(embeddings); //Create Training and testing for w2v(Word2Vec),r2v(RDF2Vec),pyke,conex
     }
 
@@ -93,22 +93,22 @@ public class dataprocessor {
         }
     }
 
-    public static void createTrainAndTestData( Map<String, String> embeddings) {
+    public static void createTrainAndTestData(Map<String, String> embeddings) {
         try {
             int productId;
             String id, recId, fileline, embed, recEmbed;
             String filepath = "data/trainingData/" + modeler + "/" + modeler;
-            Map<Integer, String> recommendationlist = getRecommendationList();
+            Map<Integer, String> recommendationlist = embeddingModelInfo.getRecommendationList();
 
-            for (int fold = 0; fold < 1; fold++) {
+            for (int fold = 0; fold < 5; fold++) {
                 System.out.println("creating train and test data for " + modeler + " - Fold " + fold
-                        +"\nThe number of total products: "+ recommendationlist.size());
+                        + "\nThe number of total products: " + recommendationlist.size());
 
                 int testProducts = 0, trainProducts = 0, excludedProducts = 0;
                 FileWriter trainfile = new FileWriter(filepath + "_train_F" + fold + ".csv");
                 FileWriter testfile = new FileWriter(filepath + "_test_F" + fold + ".csv");
 
-                for (int i=0;i<15090;i++) {
+                for (int i = 0; i < 15090; i++) {
                     if (recommendationlist.containsKey(i)) {
                         String[] parts = recommendationlist.get(i).split(",");
                         id = String.valueOf(i);
@@ -137,13 +137,19 @@ public class dataprocessor {
                         } else {
                             excludedProducts++;
                         }
-                    } else
-                        excludedProducts++;
+                    }
+                    //progress bar
+                    if (i == 5000)
+                        System.out.print("|=====           |\r");
+                    if (i == 10000)
+                        System.out.print("|========        |\r");
+                    if (i == 14000)
+                        System.out.print("|=============== |\r");
                 }
-
-                System.out.println("Fold "+fold +
-                        "\nThe number of testing products: "+ testProducts +
-                        "\nThe number of training products: "+ trainProducts +
+                System.out.println("|================| done! \n");
+                System.out.println("Fold " + fold +
+                        "\nThe number of testing products: " + testProducts +
+                        "\nThe number of training products: " + trainProducts +
                         "\nThe number excludedProducts: " + excludedProducts);
 
                 //save file
@@ -168,56 +174,64 @@ public class dataprocessor {
     public static void createTrainAndTestDataHybrid(Map<String, String> embeddings) {
         try {
             int productid;
-            String id, recId, fileline, embed, recEmbed, embed2, recEmbed2;
+            String id, recId, fileline, embedVectorW2V, embedVectorConex, recEmbedW2V, recEmbedConex;
             String filepath = "data/trainingData/" + modeler + "/" + modeler;
             Map<String, String> embeddingsConex = readEmbeddingsC();
-            Map<Integer, String> recommendationlist = getRecommendationList();
+            Map<Integer, String> recommendationlist = embeddingModelInfo.getRecommendationList();
 
             for (int fold = 0; fold < 5; fold++) {
-                System.out.println(" creating train and test data for " + modeler + "Fold " + fold);
+                System.out.println("creating train and test data for " + modeler + " - Fold " + fold);
                 int testProducts = 0, trainProducts = 0, excludedProducts = 0;
 
                 FileWriter trainfile = new FileWriter(filepath + "_train_F" + fold + ".csv");
                 FileWriter testfile = new FileWriter(filepath + "_test_F" + fold + ".csv");
 
-                for (int i=0;i<recommendationlist.size();i++) {
+                for (int i = 0; i < 15090; i++) {
                     if (recommendationlist.containsKey(i)) {
                         String[] parts = recommendationlist.get(i).split(",");
                         id = String.valueOf(i);
-                    embed = FindEmbeddingsById(embeddings, id);
-                    embed2 = FindEmbeddingsById(embeddingsConex,id);
+                        embedVectorW2V = FindEmbeddingsById(embeddings, id);
+                        embedVectorConex = FindEmbeddingsById(embeddingsConex, id);
 
-                    if (!(id.isEmpty()) && !(embed.isEmpty())&& !(embed2.isEmpty())) {
-                        productid = Integer.parseInt(id);
-                        //construct test data
-                        if (productid % 5 == fold) {
-                            String testline = productid +","+embed2 + "," + embed + "\n";
-                            testfile.append(testline);
-                            testProducts++;
-                        } else {
-                            //construct train data
-                            for (int j = 0; j < parts.length; j++) {
-                                recId = parts[j];
-                                recEmbed = FindEmbeddingsById(embeddings, recId);
-                                recEmbed2 = FindEmbeddingsById(embeddingsConex, recId);
-                                if (!recEmbed.isEmpty()&&!recEmbed2.isEmpty()) {
-                                    fileline = embed2 + "," + embed +","+ recEmbed2+","+recEmbed;
-                                    trainfile.append(fileline);
-                                    trainfile.append("\n");
-                                } else {
-                                    excludedProducts++;
+                        if (!(id.isEmpty()) && embedVectorW2V != null && embedVectorConex != null) {
+                            productid = Integer.parseInt(id);
+                            //construct test data
+                            if (productid % 5 == fold) {
+                                String testline = productid + "," + embedVectorConex + "," + embedVectorW2V + "\n";
+                                testfile.append(testline);
+                                testProducts++;
+                            } else {
+                                //construct train data
+                                for (int j = 0; j < parts.length; j++) {
+                                    recId = parts[j];
+                                    recEmbedW2V = FindEmbeddingsById(embeddings, recId);
+                                    recEmbedConex = FindEmbeddingsById(embeddingsConex, recId);
+                                    if (recEmbedW2V != null && recEmbedConex != null) {
+                                        fileline = embedVectorConex + "," + embedVectorW2V + "," + recEmbedConex + "," + recEmbedW2V;
+                                        trainfile.append(fileline);
+                                        trainfile.append("\n");
+                                    } else {
+                                        excludedProducts++;
+                                    }
                                 }
+                                trainProducts++;
                             }
-                            trainProducts++;
+                        } else {
+                            excludedProducts++;
                         }
-                    } else {
-                        excludedProducts++;
                     }
+                    //progress bar
+                    if (i == 5000)
+                        System.out.print("|=====           |\r");
+                    if (i == 10000)
+                        System.out.print("|========        |\r");
+                    if (i == 14000)
+                        System.out.print("|=============== |\r");
                 }
-                }
-                System.out.println("Fold "+fold +
-                        "\nThe number of testing products: "+ testProducts +
-                        "\nThe number of training products: "+ trainProducts +
+                System.out.println("|================| done! \n");
+                System.out.println("Fold " + fold +
+                        "\nThe number of testing products: " + testProducts +
+                        "\nThe number of training products: " + trainProducts +
                         "\nThe number excludedProducts: " + excludedProducts);
 
                 //save files
@@ -243,17 +257,17 @@ public class dataprocessor {
         String id, recId, fileline, embed;
         try {
             INDArray embeds = list_embeddings();
-            Map<Integer, String> recommendationlist = getRecommendationList();
+            Map<Integer, String> recommendationlist = embeddingModelInfo.getRecommendationList();
             String filepath = "data/trainingData/" + modeler + "/" + modeler;
 
-            for (int fold = 0; fold < 1; fold++) {
-                System.out.println("Creating train and test data for " + modeler + " - Fold " + fold);
+            for (int fold = 0; fold < 5; fold++) {
+                System.out.println("Creating Centroid train and test data for " + modeler + " - Fold " + fold);
                 int testProducts = 0, trainProducts = 0, excludedProducts = 0;
 
                 FileWriter trainfile = new FileWriter(filepath + "_train_F" + fold + "Centroid.csv");
                 FileWriter testfile = new FileWriter(filepath + "_test_F" + fold + "Centroid.csv");
 
-                for (int i=0;i<recommendationlist.size();i++) {
+                for (int i = 0; i < 15090; i++) {
                     if (recommendationlist.containsKey(i)) {
                         String[] parts = recommendationlist.get(i).split(",");
                         id = String.valueOf(i);
@@ -267,14 +281,14 @@ public class dataprocessor {
                                 testProducts++;
                             } else {
                                 //construct train data
-                                INDArray row = Nd4j.zeros(new long[]{embeddingModelinfo.getDimension()});
+                                INDArray row = Nd4j.zeros(new long[]{embeddingModelInfo.getDimension()});
                                 for (int j = 0; j < parts.length; j++) {
                                     recId = parts[j];
                                     row = row.addRowVector(embeds.getRow(Integer.parseInt(recId)));
                                 }
                                 row.divi(10);
                                 if (!row.isEmpty()) {
-                                    fileline = embed + "," + row.toStringFull()+"\n";
+                                    fileline = embed + "," + row.toStringFull() + "\n";
                                     trainfile.append(fileline);
                                 } else {
                                     System.out.println("recEmbed is empty!");
@@ -286,11 +300,19 @@ public class dataprocessor {
                             excludedProducts++;
                         }
                     }
-                }
 
-                System.out.println("Fold "+fold +
-                        "\nThe number of testing products: "+ testProducts +
-                        "\nThe number of training products: "+ trainProducts +
+                    //progress bar
+                    if (i == 5000)
+                        System.out.print("|=====           |\r");
+                    if (i == 10000)
+                        System.out.print("|========        |\r");
+                    if (i == 14000)
+                        System.out.print("|=============== |\r");
+                }
+                System.out.println("|================| done! \n");
+                System.out.println("Fold " + fold +
+                        "\nThe number of testing products: " + testProducts +
+                        "\nThe number of training products: " + trainProducts +
                         "\nThe number excludedProducts: " + excludedProducts);
 
                 //save files
@@ -312,9 +334,9 @@ public class dataprocessor {
     }
 
     public static INDArray list_embeddings() {
-        try{
-            INDArray embeds = Nd4j.create(new int[]{15089, embeddingModelinfo.getDimension()});
-            List<String> lines = IOUtils.readLines(new FileInputStream(embeddingModelinfo.getnormalizedEmbeddingsPath()), StandardCharsets.UTF_8);
+        try {
+            INDArray embeds = Nd4j.create(new int[]{15089, embeddingModelInfo.getDimension()});
+            List<String> lines = IOUtils.readLines(new FileInputStream(embeddingModelInfo.getnormalizedEmbeddingsPath()), StandardCharsets.UTF_8);
             for (String line : lines) {
                 int id = Integer.parseInt(line.substring(0, line.indexOf(",")));
                 String[] parts = line.split(",");
@@ -332,12 +354,12 @@ public class dataprocessor {
 
 
     private static Map<String, String> readEmbeddings() {
-        String path="";
+        String path = "";
         try {
             if ("hybride".equals(modeler))
                 path = "data/normalizedEmbeddings/w2v_normalizedvectors.csv";
             else
-                path = embeddingModelinfo.getnormalizedEmbeddingsPath();
+                path = embeddingModelInfo.getnormalizedEmbeddingsPath();
             List<String> lines = IOUtils.readLines(new FileInputStream(path), StandardCharsets.UTF_8);
             Map<String, String> enums = new HashMap<>();
             for (String line : lines) {
@@ -358,8 +380,8 @@ public class dataprocessor {
             List<String> lines = IOUtils.readLines(new FileInputStream(path), StandardCharsets.UTF_8);
             Map<String, String> enums = new HashMap<>();
             for (String line : lines) {
-                String id = line.substring(0,line.indexOf(","));
-                String prodDisc = line.substring(line.indexOf(",")+1);
+                String id = line.substring(0, line.indexOf(","));
+                String prodDisc = line.substring(line.indexOf(",") + 1);
                 enums.put(id, prodDisc);
             }
             return enums;
@@ -417,7 +439,7 @@ public class dataprocessor {
                     file.append(fileline);
                     file.append("\n");
                 } else {
-                    System.out.println("Embedding vector for product "+ p_name+" not found");
+                    System.out.println("Embedding vector for product " + p_name + " not found");
                 }
             }
             try {
@@ -467,7 +489,7 @@ public class dataprocessor {
     }
 
     private static String FindEmbeddingsById(Map<String, String> embeddings, String productId) {
-        String embeds=null;
+        String embeds = null;
         String localId;
         try {
             for (Map.Entry<String, String> entry : embeddings.entrySet()) {
