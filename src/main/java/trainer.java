@@ -56,7 +56,7 @@ public class trainer {
             DataSetIterator testData = new RecordReaderDataSetIterator.Builder(rr, 3000).regression(0, 0).build();
 
             System.out.println("building neural network model....");
-            MultiLayerNetwork model = modelBuilder(args[2],args[3],args[4]);
+            MultiLayerNetwork model = modelBuilder(args[2], args[3], args[4]);
 
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH-mm-ss");
             LocalDateTime now = LocalDateTime.now();
@@ -75,8 +75,8 @@ public class trainer {
             }
 
             // save model
-            if (args[2]!=null){
-                String saveModel=args[2];
+            if (args[2] != null) {
+                String saveModel = args[2];
                 if ("yes".equals(saveModel))
                     model.save(new File("data/evaluation/" + modeler + "/" + modeler + "_epoch" + epochs + ".model"), true);
             }
@@ -153,11 +153,11 @@ public class trainer {
                         INDArray row_w2v = embedsW2v.getRow(e);
 
                         // Store  cosine similarities for all product
-                        if (row_w2v!=null&&row_conex!=null) {
+                        if (row_w2v != null && row_conex != null) {
                             double similarity_conex = cosineSimilarity(predictionOfConex, row_conex.toDoubleVector());
                             double similarity_w2v = cosineSimilarity(predictionOfW2v, row_w2v.toDoubleVector());
                             similarities[e] = (similarity_conex + similarity_w2v) / 2;
-                        }else
+                        } else
                             similarities[e] = 0;
 
                         indexes[e] = e;
@@ -285,7 +285,7 @@ public class trainer {
         return count;
     }
 
-    private static MultiLayerNetwork modelBuilder(String learningRate,String l2Reg, String hiddenNodes) {
+    private static MultiLayerNetwork modelBuilder(String learningRate, String l2Reg, String hiddenNodes) {
         final int numInputs = embeddingModelInfo.dimension;
         int seed = 123;
         double lr = Double.parseDouble(learningRate);

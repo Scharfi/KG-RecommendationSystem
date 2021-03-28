@@ -21,8 +21,8 @@ mvn exec:java -Dexec.mainClass=dataprocessor -Dexec.args="conex false"
 ```
 ### Train the recommender
 
-The training of the recommender is done in Class trainer for Word2Vec, RDF2Vec, Pyke, ConEx and in trainerHybridE Class for HybridE.
-The model can be saved at any training phase (epoch), where it can be specified as args:
+The training of the recommender is done in Class trainer.
+The model can be saved at any training phase (epoch), where it can be specified in the  arguments:
 ```
 mvn exec:java -Dexec.mainClass=trainer -Dexec.args="conex 10 0.5 0.0000001 9000 no"
 args1="Embedding model name" args2="Number of epochs" args3="LearningRate" args4="L2" args5="HiddenNodes" args6="Yes/No"(saveModel-optional)

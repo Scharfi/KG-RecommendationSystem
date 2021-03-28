@@ -35,10 +35,9 @@ public class dataprocessor {
         embeddings = readEmbeddings();
         if ("hybride".equals(modeler))
             createTrainAndTestDataHybrid(embeddings); // Create Training and testing for HybridE
-        else if (args[1]!=null) {
-            if ("true".equals(args[1]))
-                createCentroidTrainAndTestData(embeddings); // Create Training and testing for the centroid assumption
-        } else
+        else if ("true".equals(args[1]))
+            createCentroidTrainAndTestData(embeddings); // Create Training and testing for the centroid assumption
+        else
             createTrainAndTestData(embeddings); //Create Training and testing for w2v(Word2Vec),r2v(RDF2Vec),pyke,conex
     }
 
