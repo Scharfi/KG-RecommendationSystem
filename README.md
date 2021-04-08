@@ -39,9 +39,14 @@ The best performance configuration for each models:
 | hybride | 0.9 | 1e-7 | 9000 |
 
 The evaluation results are stored under data/evaluation/model_name.
-
+### load a saved model for further evaluation
+After training, the recommender model can be saved under directory "models". Thus, the models can be again loaded and 
+trained for more epochs and evaluated.
+```
+mvn exec:java -Dexec.mainClass=loader -Dexec.args="conex 10 conex1 yes"
+args1="Embedding model name" args2="Number of epochs" args3="Model Name" args4="Yes/No"(saveModel-optional)
+```
 ### Other trainer
-The class loader can load a model and further train and test it. 
 The class Cheater generates centroid vectors for each product found in the test set and evaluates them.
 
 # Requirement

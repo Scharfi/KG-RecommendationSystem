@@ -1,4 +1,3 @@
-import org.apache.commons.io.IOUtils;
 import org.datavec.api.records.reader.RecordReader;
 import org.datavec.api.records.reader.impl.csv.CSVRecordReader;
 import org.datavec.api.split.FileSplit;
@@ -23,6 +22,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -35,10 +35,15 @@ import java.util.Map;
 public class trainer {
     static String modeler;
     static modelConstructor embeddingModelInfo;
+    static boolean saveModel = true;
+    static Map<String, String> parameters = new HashMap<>();
 
     public static void main(String[] args) throws Exception {
-        embeddingModelInfo = new modelConstructor(args[0]); // w2v(Word2Vec),r2v(RDF2Vec),pyke,conex,hybride
-        modeler = embeddingModelInfo.getModelname();
+        parameters = read_parameters(args);
+        modeler = parameters.get("modeler");
+        System.out.println(parameters.toString());
+
+        embeddingModelInfo = new modelConstructor(modeler); // w2v(Word2Vec),r2v(RDF2Vec),pyke,conex,hybride
 
         int dimension = embeddingModelInfo.getDimension();
         int labelIndexFrom = dimension;
@@ -56,18 +61,18 @@ public class trainer {
             DataSetIterator testData = new RecordReaderDataSetIterator.Builder(rr, 3000).regression(0, 0).build();
 
             System.out.println("building neural network model....");
-            MultiLayerNetwork model = modelBuilder(args[2], args[3], args[4]);
+            MultiLayerNetwork model = modelBuilder();
 
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH-mm-ss");
             LocalDateTime now = LocalDateTime.now();
             FileWriter file = new FileWriter("data/evaluation/" + modeler + "/" + dtf.format(now) + "_" + modeler + "_evaluationResults_F" + fold + ".csv");
 
-            String info = modeler + " - Fold " + fold + "\nConfig = " + model.getLayer(1) + "\n";
+            String info = modeler + " - Fold " + fold + "\nConfig = " + model.getLayer(1) + "\nEpochs: " + parameters.get("epochs") + "\n";
             System.out.println(info);
             file.append(info);
 
             System.out.println("fit model....");
-            int epochs = Integer.parseInt(args[1]);
+            int epochs = Integer.parseInt(parameters.get("epochs"));
             for (int i = 0; i < epochs; i++) {
                 while (trainData.hasNext())
                     model.fit(trainData.next());
@@ -75,20 +80,14 @@ public class trainer {
             }
 
             // save model
-            if (args[2] != null) {
-                String saveModel = args[2];
-                if ("yes".equals(saveModel))
-                    model.save(new File("data/evaluation/" + modeler + "/" + modeler + "_epoch" + epochs + ".model"), true);
-            }
+            if (saveModel)
+                model.save(new File("data/models/" + modeler + epochs + ".model"), true);
 
             System.out.println("output check and evaluation... for epoch " + epochs);
             DataSet test = testData.next();
             INDArray feature = test.getFeatures();
             INDArray products = test.getLabels();
             INDArray prediction = model.output(feature);
-
-            info = "epoch " + epochs + "\nNumber of samples " + feature.size(0) + "\n";
-            file.append(info);
 
             // evaluate predicted rows
             ranking_evaluation(prediction, products, file);
@@ -114,7 +113,7 @@ public class trainer {
         int[] listOfCorrectPredictionPosition = new int[100];
 
         INDArray predictedVec;
-        StringBuilder fileline;
+        StringBuilder fileline = new StringBuilder();
         try {
             System.out.println("Evaluation ...");
 
@@ -122,7 +121,8 @@ public class trainer {
             Map<Integer, String> reclist = embeddingModelInfo.getRecommendationList();
 
             int numOfSamples = (int) prediction.size(0);
-            System.out.println("Number of samples " + numOfSamples);
+            fileline = fileline.append("Number of samples: ").append(numOfSamples);
+            System.out.println(fileline.toString());
 
             // loop over all predicted vectors and count correct samples
             for (int k = 0; k < numOfSamples; k++) {
@@ -131,8 +131,8 @@ public class trainer {
                 indexes = new int[15089];
 
                 predictedVec = prediction.getRow(k);
-                String productid = products.getRow(k).toStringFull();
-                productTotest = Integer.parseInt(productid.substring(1, productid.length() - 1));
+                String productId = products.getRow(k).toStringFull();
+                productTotest = Integer.parseInt(productId.substring(1, productId.length() - 1));
 
                 // loop over the embeddings vectors and calculate cosine similarity between vectors
                 if ("hybride".equals(modeler)) {
@@ -285,29 +285,29 @@ public class trainer {
         return count;
     }
 
-    private static MultiLayerNetwork modelBuilder(String learningRate, String l2Reg, String hiddenNodes) {
-        final int numInputs = embeddingModelInfo.dimension;
+    public static MultiLayerNetwork modelBuilder() {
+        final int numInputs = embeddingModelInfo.getDimension();
         int seed = 123;
-        double lr = Double.parseDouble(learningRate);
-        int nOut = Integer.parseInt(hiddenNodes);
-        double l2 = Double.parseDouble(l2Reg);
+        double learningRate = Double.parseDouble(parameters.get("learningRate"));
+        double l2Reg = Double.parseDouble(parameters.get("l2Reg"));
+        int hiddenNodes = Integer.parseInt(parameters.get("hiddenNodes"));
 
         MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
                 .seed(seed)
-                .updater(new Sgd(lr))
-                .l2(l2)
+                .updater(new Sgd(learningRate))
+                .l2(l2Reg)
                 .list()
                 .layer(new DenseLayer.Builder().nIn(numInputs).nOut(numInputs)
                         .activation(Activation.IDENTITY)
                         .weightInit(WeightInit.XAVIER)
                         .build())
-                .layer(new DenseLayer.Builder().nIn(numInputs).nOut(nOut)
+                .layer(new DenseLayer.Builder().nIn(numInputs).nOut(hiddenNodes)
                         .activation(Activation.RELU)
                         .build())
                 .layer(new OutputLayer.Builder()
                         .lossFunction(LossFunctions.LossFunction.MSE)
                         .activation(Activation.TANH)
-                        .nIn(nOut).nOut(numInputs).build())
+                        .nIn(hiddenNodes).nOut(numInputs).build())
                 .build();
 
         System.out.println("init model....");
@@ -327,5 +327,32 @@ public class trainer {
             normB += Math.pow(vectorB[i], 2);
         }
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    public static Map<String, String> read_parameters(String[] args) {
+        Map<String, String> params = new HashMap<>();
+        try {
+            if (args.length > 0) {
+                params.put("modeler", args[0]);
+                params.put("epochs", args[1]);
+                params.put("learningRate", args[2]);
+                params.put("l2Reg", args[3]);
+                params.put("hiddenNodes", args[4]);
+                if (args[6] != null)
+                    if ("Yes".equals(args[6]))
+                        saveModel = true;
+            } else {
+                System.out.println("loading default values...");
+                params.put("modeler", "conex");
+                params.put("epochs", "1");
+                params.put("learningRate", "0.9");
+                params.put("l2Reg", "0.0000001");
+                params.put("hiddenNodes", "9000");
+            }
+            return params;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }
