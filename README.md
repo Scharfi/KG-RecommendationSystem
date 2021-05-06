@@ -18,6 +18,7 @@ of choice (w2v, r2v, pyke, conex, hybride). To build centroid-based data, change
 
 ```
 mvn exec:java -Dexec.mainClass=dataprocessor -Dexec.args="conex false"
+args1="Embedding model name" args2="true/false"
 ```
 ### Train the recommender
 
@@ -49,6 +50,10 @@ args1="Embedding model name" args2="Number of epochs" args3="Model Name" args4="
 ### Other trainer
 The class Cheater generates centroid vectors for each product found in the test set and evaluates them.
 
+### Research paper
+RDF2VEC: semantic-web-journal.net/system/files/swj1738.pdf
+Pyke: arxiv.org/pdf/2001.07418.pdf
+Conex: arxiv.org/pdf/2008.03130.pdf
 # Requirement
 
 Java 1.8

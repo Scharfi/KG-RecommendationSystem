@@ -17,8 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A class to load a pre-trained model that can be used for more training or testing.
- *
+ * A class to load a pre-trained model that can be used for more training and testing.
  * @author Salma Charfi
  */
 public class loader {
@@ -96,6 +95,8 @@ public class loader {
             }
         }
     }
+
+
 
     private static void ranking_evaluation(INDArray prediction, INDArray products, FileWriter file) {
         double similarity, sumOfCorrectPrediction = 0, ProductHasNoCorrectPrediction = 0, ProductHasCorrectPrediction = 0, count;

@@ -8,6 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A constructor Class for the embedding models that return all the relevant parameters for each Embedding model.
+ * Embedding models: Word2Vec(w2v), Pyke, RDF2Vec(r2v), Conex, HybridE(hybride:W2V+Conex)
+ * @author Salma Charfi
+ */
+
 public class modelConstructor {
     String name;
     int dimension;
